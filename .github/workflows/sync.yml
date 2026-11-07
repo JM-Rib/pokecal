@@ -1,0 +1,52 @@
+name: Sync Pokémon TCG Calendar
+
+on:
+  schedule:
+    # Run daily at 04:00 UTC
+    - cron: '0 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: "netlify-deploy"
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    env:
+      NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+      NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Install Playwright Chromium
+        run: uv run playwright install chromium --with-deps
+
+      - name: Run PokéCal Sync
+        run: uv run pokecal sync
+
+      - name: Add Netlify headers file
+        run: |
+          cat > dist/_headers <<'EOF'
+          /*.ics
+            Content-Type: text/calendar; charset=utf-8
+            Cache-Control: public, max-age=0, must-revalidate
+          EOF
+
+      - name: Deploy to Netlify
+        run: npx --yes netlify-cli deploy --prod --dir=dist
