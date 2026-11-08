@@ -12,9 +12,10 @@ from rich.table import Table
 
 from pokecal import __version__
 from pokecal.calendar import export_ical_file
-from pokecal.config import create_default_config_if_missing, load_config
+from pokecal.config import add_favorite_store, create_default_config_if_missing, load_config
 from pokecal.parser import parse_store_url
 from pokecal.scraper import PokemonScraper
+from pokecal.search import build_location_detail_url, search_stores
 
 app = typer.Typer(
     name="pokecal",
@@ -135,6 +136,53 @@ def inspect_store(
         console.print(f"[green]Found {len(events)} events:[/green]")
         for ev in events:
             console.print(f"  • {ev.start_time.strftime('%Y-%m-%d %H:%M')}: [bold]{ev.title}[/bold] ({ev.event_type})")
+
+
+@app.command()
+def search(
+    city: str = typer.Argument(..., help="City to search around."),
+    config_file: Path = typer.Option(Path("stores.yaml"), "--config", "-c", help="stores.yaml to save favorites to."),
+    range_: int = typer.Option(25, "--range", "-r", help="Search radius."),
+    km: bool = typer.Option(False, "--km", help="Use kilometres instead of miles."),
+    headless: bool = typer.Option(
+        False,
+        "--headless/--no-headless",
+        help="The locator blocks headless browsers, so a visible window is the default.",
+    ),
+) -> None:
+    """Search stores near a city and save favorites to stores.yaml."""
+
+    def choose(labels: list[str]) -> int:
+        for i, label in enumerate(labels, 1):
+            console.print(f"  [cyan]{i}[/cyan]. {label}")
+        return typer.prompt("Pick a town", type=typer.IntRange(1, len(labels))) - 1
+
+    stores = asyncio.run(search_stores(city, choose, headless=headless))
+
+    if not stores:
+        console.print(f"[yellow]No town or store found for '{city}'.[/yellow]")
+        raise typer.Exit(code=1)
+
+    table = Table(title=f"Stores ({len(stores)})", header_style="bold magenta")
+    table.add_column("#", style="cyan")
+    table.add_column("Store", style="bold white")
+    table.add_column("Address", style="yellow")
+    for i, st in enumerate(stores, 1):
+        table.add_row(str(i), st.name, st.address)
+    console.print(table)
+
+    answer = typer.prompt("Favorites to save (comma-separated numbers, empty to skip)", default="", show_default=False)
+    picks = {int(x) for x in answer.replace(" ", "").split(",") if x.isdigit()}
+    for i in sorted(picks):
+        if not 1 <= i <= len(stores):
+            console.print(f"[red]Ignoring invalid number {i}.[/red]")
+            continue
+        st = stores[i - 1]
+        url = build_location_detail_url(st, range_=range_, is_km=km)
+        if add_favorite_store(config_file, st.name, url, st.guid):
+            console.print(f"[green]✓ Saved[/green] {st.name}")
+        else:
+            console.print(f"[yellow]Already configured:[/yellow] {st.name}")
 
 
 @app.command()

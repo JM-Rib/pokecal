@@ -21,6 +21,16 @@ class StoreMetadata(BaseModel):
     original_url: str | None = None
 
 
+class SearchedStore(BaseModel):
+    """A store returned by the locator's nearby-store search."""
+
+    guid: str
+    name: str
+    address: str = ""
+    latitude: float | None = None
+    longitude: float | None = None
+
+
 class StoreFilterConfig(BaseModel):
     """Filter preferences for a specific store."""
 

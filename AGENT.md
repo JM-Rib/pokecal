@@ -30,7 +30,13 @@ If the page cannot be reached or its structure differs from what the feature nee
 
 ## 3. Feature specification: store search and favorites
 
-Status: planned. Nothing in this section is implemented yet.
+Status: implemented in `pokecal/search.py`, `pokecal/config.py` (`add_favorite_store`) and `pokecal search`.
+
+Live-site findings (inspected with headed Chromium; headless Chromium is blocked by Incapsula/hCaptcha):
+- The city input `#b3-Input_LocationName` is a Google Places widget (`.pac-item`). Picking a suggestion navigates to the coordinate URL below; no site API is called for suggestions.
+- Loading the coordinate URL directly shows no store cards; the list loads after a city is picked.
+- Stores come from `POST /EventLocator/screenservices/EventLocator/MainFlow/Home/DataActionGetLocations` (`data.Locations.List[]`: `Guid`, `Display_name`, `Address.Full_address/Latitude/Longitude`, max 50). No distance field.
+- `LocationDetail` returns the same events whatever coordinates the URL carries.
 
 ### 3.1 User flow
 

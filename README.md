@@ -19,6 +19,7 @@ Because it outputs standard RFC 5545 `.ics` (iCalendar / Webcal) feeds, **zero G
 - **Deterministic Deduplication:** Generates stable, deterministic UIDs (`pokemon-tcg-{store_guid}-{date}-{hash}@pokecal`) to avoid duplicate entries across syncs.
 - **Rich Event Formatting:** Categorized emoji tags (🏆 for Cups, 🥇 for Challenges, 🎁 for Prereleases, 🎴 for Leagues), complete venue addresses, official direct URLs, and custom refresh intervals (`X-PUBLISHED-TTL: PT6H`).
 - **Headless OutSystems Scraping:** Uses Python Playwright to cleanly render the single-page application (SPA) and extract real-time tournament schedules.
+- **Store Search & Favorites:** `pokecal search <city>` finds stores near a town and saves your favorites to `stores.yaml`.
 - **Automated GitHub Pages Publishing:** Ready-to-use GitHub Action (`.github/workflows/sync.yml`) runs daily and hosts your calendar feed for free.
 
 ---
@@ -89,6 +90,14 @@ uv run pokecal inspect-store "<STORE_URL>"
 uv run pokecal inspect-store "<STORE_URL>" --fetch
 ```
 
+### `pokecal search <city>`
+Searches the locator for stores around a city and saves favorites to `stores.yaml`:
+```bash
+uv run pokecal search Lyon
+# Options: --range 50, --km, --config my_stores.yaml
+```
+A visible browser window opens (the locator blocks headless browsers). Pick a town from the autocomplete suggestions, then enter the numbers of the stores to save. Each favorite is appended to `stores.yaml` as a `LocationDetail` URL carrying the store's own GUID and coordinates; existing content is left untouched and duplicates are skipped. The search itself is not persisted.
+
 ### `pokecal init`
 Creates a starter `stores.yaml` configuration template:
 ```bash
@@ -148,7 +157,7 @@ Contributors and AI development agents must read [`AGENT.md`](AGENT.md) before c
 
 ## Roadmap
 
-- **Store search (planned, not yet implemented):** search for a city on the home page, pick a town from autocomplete, browse the stores around its coordinates, and save favourite stores to `stores.yaml`. Favourite stores may be in different towns from the search point.
+- **Store search (implemented):** `pokecal search <city>`; see CLI Commands. Favourite stores may be in different towns from the search point.
 - **Discord bot (planned, later):** a Discord interface built on Pipedream. Out of scope for now.
 
 ---
