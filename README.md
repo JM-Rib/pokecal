@@ -134,11 +134,22 @@ To activate GitHub Pages in your repository:
 
 ## Testing
 
-Run the test suite with pytest:
+Run the unit test suite with pytest:
 
 ```bash
 uv run pytest
 ```
+
+Tests are **unit tests only**: they run offline and use recorded fixtures or mocks instead of the live site. End-to-end tests are intentionally out of scope for this project.
+
+## Development
+
+Contributors and AI development agents must read [`AGENT.md`](AGENT.md) before changing code. It covers the required inspection of the live site before scraping work, the planned store search feature, and the testing rules.
+
+## Roadmap
+
+- **Store search (planned, not yet implemented):** search for a city on the home page, pick a town from autocomplete, browse the stores around its coordinates, and save favourite stores to `stores.yaml`. Favourite stores may be in different towns from the search point.
+- **Discord bot (planned, later):** a Discord interface built on Pipedream. Out of scope for now.
 
 ---
 
