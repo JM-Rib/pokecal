@@ -50,7 +50,7 @@ def format_event_summary(event: PokemonEvent) -> str:
         badge = "⚔️"
 
     category = event.game_category or "TCG"
-    return f"{badge} [{category}] {event.title} - {event.store_name}"
+    return f"{badge} {event.title} - {event.store_name} ({category})"
 
 
 def format_event_description(event: PokemonEvent) -> str:

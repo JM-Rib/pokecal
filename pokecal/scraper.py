@@ -10,7 +10,7 @@ from typing import Any, Sequence
 import dateparser
 import pytz
 from playwright.async_api import async_playwright, Browser, BrowserContext, Page
-from pokecal.models import PokemonEvent, StoreConfig, StoreMetadata
+from pokecal.models import PokemonEvent, StoreConfig, StoreFilterConfig, StoreMetadata
 from pokecal.parser import parse_store_url
 
 logger = logging.getLogger(__name__)
@@ -123,6 +123,26 @@ def parse_event_card_data(
     )
 
 
+def filter_events(events: Sequence[PokemonEvent], filters: StoreFilterConfig) -> list[PokemonEvent]:
+    """Keep only events matching a store's filters.
+
+    An empty or missing list in a filter means "no restriction" for that field.
+    event_types matches case-insensitively as a substring of the event type (e.g. "Cup" matches "League Cup").
+    """
+    kept: list[PokemonEvent] = []
+    for ev in events:
+        if filters.game_categories and ev.game_category not in filters.game_categories:
+            continue
+        if filters.event_types and not any(f.lower() in ev.event_type.lower() for f in filters.event_types):
+            continue
+        if filters.exclude_keywords:
+            full_text = f"{ev.title} {ev.event_type}".lower()
+            if any(kw.lower() in full_text for kw in filters.exclude_keywords):
+                continue
+        kept.append(ev)
+    return kept
+
+
 class PokemonScraper:
     """Scraper engine for Play! Pokémon Event Locator."""
 
@@ -193,27 +213,8 @@ class PokemonScraper:
 
             await browser.close()
 
-        events: list[PokemonEvent] = []
-        for raw in cards_data:
-            ev = parse_event_card_data(raw, store_meta)
-            if not ev:
-                continue
-
-            # Apply filters
-            if store_cfg.filters.game_categories:
-                if ev.game_category not in store_cfg.filters.game_categories:
-                    continue
-
-            if store_cfg.filters.event_types:
-                if not any(f.lower() in ev.event_type.lower() for f in store_cfg.filters.event_types):
-                    continue
-
-            if store_cfg.filters.exclude_keywords:
-                full_text = f"{ev.title} {ev.event_type}".lower()
-                if any(kw.lower() in full_text for kw in store_cfg.filters.exclude_keywords):
-                    continue
-
-            events.append(ev)
+        parsed_events = [ev for ev in (parse_event_card_data(raw, store_meta) for raw in cards_data) if ev]
+        events = filter_events(parsed_events, store_cfg.filters)
 
         logger.info("Found %d matching events for '%s'", len(events), store_meta.name)
         return events

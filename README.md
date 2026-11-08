@@ -58,7 +58,25 @@ stores:
     filters:
       game_categories:
         - "TCG"
+      # event_types: ["Cup"]          # optional: keep only matching event types
+      # exclude_keywords: ["Junior"]  # optional: drop events whose title or type contains these
 ```
+
+Each store has its own `filters`, so one store can sync every event while another only syncs cups:
+
+```yaml
+  - name: "Cups only"
+    url: "https://events.pokemon.com/EventLocator/LocationDetail?LocationGuid=..."
+    enabled: true
+    filters:
+      event_types:
+        - "Cup"
+```
+
+Filter behaviour:
+- `game_categories`: keep events whose game matches (default `["TCG"]`).
+- `event_types`: optional. When omitted or empty, all event types are kept. Otherwise an event is kept if its type contains one of the listed words, case-insensitively (`"Cup"` matches `League Cup`).
+- `exclude_keywords`: optional. Drop events whose title or type contains any listed word, case-insensitively.
 
 ### 3. Generate Calendar Feed
 

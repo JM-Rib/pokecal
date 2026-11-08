@@ -20,6 +20,24 @@ def test_create_and_load_config(tmp_path):
     assert "TCG" in store.filters.game_categories
 
 
+def test_load_config_reads_event_types_per_store(tmp_path):
+    cfg_file = tmp_path / "stores.yaml"
+    cfg_file.write_text(
+        "stores:\n"
+        "  - name: All\n"
+        "    url: https://x\n"
+        "  - name: Cups only\n"
+        "    url: https://y\n"
+        "    filters:\n"
+        "      event_types: [\"Cup\"]\n",
+        encoding="utf-8",
+    )
+
+    all_store, cup_store = load_config(cfg_file).stores
+    assert all_store.filters.event_types is None
+    assert cup_store.filters.event_types == ["Cup"]
+
+
 def test_add_favorite_store_preserves_file_and_skips_duplicates(tmp_path):
     cfg_file = tmp_path / "stores.yaml"
     create_default_config_if_missing(cfg_file)

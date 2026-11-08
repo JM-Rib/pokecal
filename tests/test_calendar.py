@@ -46,7 +46,7 @@ def test_generate_ical_feed():
     events = [c for c in parsed_cal.walk() if c.name == "VEVENT"]
     assert len(events) == 1
     assert str(events[0]["uid"]) == "pokemon-event-test-guid-9999@pokecal"
-    assert str(events[0]["summary"]) == "🥇 [TCG] League Challenge - Le coin des barons - Paris Rivoli"
+    assert str(events[0]["summary"]) == "🥇 League Challenge - Le coin des barons - Paris Rivoli (TCG)"
     assert str(events[0]["location"]) == "Le coin des barons - Paris Rivoli, Paris, France"
     assert str(events[0]["status"]) == "CONFIRMED"
 

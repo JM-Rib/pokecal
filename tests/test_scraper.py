@@ -2,8 +2,48 @@
 
 from datetime import datetime
 import pytz
-from pokecal.models import StoreMetadata
-from pokecal.scraper import parse_event_card_data
+from pokecal.models import StoreMetadata, StoreFilterConfig, PokemonEvent
+from pokecal.scraper import filter_events, parse_event_card_data
+
+
+def _event(title: str, event_type: str, game_category: str = "TCG") -> PokemonEvent:
+    return PokemonEvent(
+        guid="",
+        store_guid="store-1",
+        store_name="Shop",
+        title=title,
+        event_type=event_type,
+        game_category=game_category,
+        start_time=datetime(2026, 11, 8, 19, 0),
+    )
+
+
+def test_filter_events_keeps_only_configured_event_types():
+    events = [
+        _event("Pokémon Cup Nov.", "League Cup"),
+        _event("Weekly League", "League Challenge"),
+        _event("Prerelease", "Prerelease"),
+    ]
+    filters = StoreFilterConfig(event_types=["Cup"])
+
+    assert [e.title for e in filter_events(events, filters)] == ["Pokémon Cup Nov."]
+
+
+def test_filter_events_without_event_types_keeps_all_events():
+    events = [_event("Weekly League", "League Challenge"), _event("Cup", "League Cup")]
+
+    assert len(filter_events(events, StoreFilterConfig())) == 2
+
+
+def test_filter_events_drops_other_game_categories_and_excluded_keywords():
+    events = [
+        _event("Cup", "League Cup", game_category="VGC"),
+        _event("Cup Junior", "League Cup"),
+        _event("Cup", "League Cup"),
+    ]
+    filters = StoreFilterConfig(event_types=["cup"], exclude_keywords=["junior"])
+
+    assert [(e.title, e.game_category) for e in filter_events(events, filters)] == [("Cup", "TCG")]
 
 
 def test_parse_event_card_data_french():
