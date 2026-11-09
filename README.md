@@ -21,6 +21,7 @@ Because it outputs standard RFC 5545 `.ics` (iCalendar / Webcal) feeds, **zero G
 - **Headless OutSystems Scraping:** Uses Python Playwright to cleanly render the single-page application (SPA) and extract real-time tournament schedules.
 - **Store Search & Favorites:** `pokecal search <city>` finds stores near a town and saves your favorites to `stores.yaml`.
 - **Automated GitHub Pages Publishing:** Ready-to-use GitHub Action (`.github/workflows/sync.yml`) runs daily and hosts your calendar feed for free.
+- **Scheduled Copilot Issue Implementation:** An optional workflow processes one well-scoped `agent-ready` issue daily and opens a pull request.
 
 ---
 
@@ -156,6 +157,14 @@ Every day at 04:00 UTC (or manually via `workflow_dispatch`), the workflow:
 To activate GitHub Pages in your repository:
 - Go to **Settings** &rarr; **Pages**.
 - Under **Build and deployment**, select **Source: GitHub Actions**.
+
+## Scheduled Copilot Issue Implementation
+
+The optional [Copilot issue workflow](.github/workflows/copilot-issues.yml) runs at 04:00 UTC and processes one open issue labeled `agent-ready`. It is also available from the Actions tab with an optional issue number. The workflow claims the issue with `agent-working`, asks Copilot to implement it and run relevant tests, then opens a pull request using the repository template.
+
+To enable it, add a `COPILOT_TOKEN` repository secret: a fine-grained personal access token with only the **Copilot Requests** permission, belonging to an account licensed for GitHub Copilot. The agent runs with that token alone; branch push, pull request and label changes are done by a separate step using the workflow's `GITHUB_TOKEN`, so also enable **Settings** &rarr; **Actions** &rarr; **General** &rarr; **Allow GitHub Actions to create and approve pull requests**. Only issues authored by repository members, and comments from members, are given to the agent, and changes under `.github/` are rejected.
+
+Issues created with the **Agent task (user story)** template are ready for this workflow when their scope and acceptance criteria are complete. If Copilot needs clarification or a product decision, it creates no pull request, adds a comment with the questions, replaces `agent-working` with `needs-refinement`, and stops. Add `agent-ready` again after resolving the questions to return the issue to the queue.
 
 ---
 
