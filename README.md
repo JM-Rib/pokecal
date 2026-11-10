@@ -19,7 +19,7 @@ Because it outputs standard RFC 5545 `.ics` (iCalendar / Webcal) feeds, **zero G
 - **Deterministic Deduplication:** Generates stable, deterministic UIDs (`pokemon-tcg-{store_guid}-{date}-{hash}@pokecal`) to avoid duplicate entries across syncs.
 - **Rich Event Formatting:** Categorized emoji tags (🏆 for Cups, 🥇 for Challenges, 🎁 for Prereleases, 🎴 for Leagues), complete venue addresses, official direct URLs, and custom refresh intervals (`X-PUBLISHED-TTL: PT6H`).
 - **Headless OutSystems Scraping:** Uses Python Playwright to cleanly render the single-page application (SPA) and extract real-time tournament schedules.
-- **Store Search & Favorites:** `pokecal search <city>` finds stores near a town and saves your favorites to `stores.yaml`.
+- **Store Search & Favorites:** `pokecal search <city>` finds stores near a town and saves your favorites to the Postgres database, per Discord user ID.
 - **Automated GitHub Pages Publishing:** Ready-to-use GitHub Action (`.github/workflows/sync.yml`) runs daily and hosts your calendar feed for free.
 - **Scheduled Copilot Issue Implementation:** An optional workflow processes one well-scoped `agent-ready` issue daily and opens a pull request.
 
@@ -53,51 +53,28 @@ docker compose up -d
 
 The database is available on `localhost:${POSTGRES_PORT:-5432}` from the host. A bot added to this Compose project can connect to `db:5432` on the Compose network. Data persists in the `postgres_data` volume; `docker compose down` preserves it, while `docker compose down -v` deletes it. The host port is bound to localhost and is not exposed publicly.
 
-### 2. Configuration (`stores.yaml`)
+### 2. Configuration
 
-Define your target local game store(s) in `stores.yaml`:
+Stores are saved per user in Postgres (schema is created automatically). Users are keyed by their Discord user ID (a snowflake, stored as text). Each user-store row holds its `enabled` flag and `filters` (`game_categories`, `event_types`, `exclude_keywords`).
 
-```yaml
-output:
-  ics_path: "dist/pokecal.ics"
-  calendar_name: "Pokémon TCG Events"
-  calendar_description: "Pokémon TCG Tournaments synchronized by PokéCal"
-  default_timezone: "Europe/Paris"
+Connection (same variables as `.env.example`; export them in your shell or pass them through your container environment):
+- `DATABASE_URL`, or `POSTGRES_PASSWORD` (required) with optional `POSTGRES_USER`, `POSTGRES_DB`, `POSTGRES_PORT`, `POSTGRES_HOST` (default `localhost`; use `db` inside the Compose network).
 
-stores:
-  - name: "Le coin des barons - Paris Rivoli"
-    url: "https://events.pokemon.com/EventLocator/LocationDetail?EventDetailGUID=&range=25&latitude=48.8575475&startdate=2026-11-07&LocationGuid=d31263f1-80fb-0a60-8b04-72c8887c24f2&storename=LE+COIN+DES+BARONS+-+PARIS+RIVOLI&iskm=false&locale=en-US&LocationName=LE+COIN+DES+BARONS+-+PARIS+RIVOLI&longitude=2.3513765"
-    enabled: true
-    filters:
-      game_categories:
-        - "TCG"
-      # event_types: ["Cup"]          # optional: keep only matching event types
-      # exclude_keywords: ["Junior"]  # optional: drop events whose title or type contains these
-```
-
-Each store has its own `filters`, so one store can sync every event while another only syncs cups:
-
-```yaml
-  - name: "Cups only"
-    url: "https://events.pokemon.com/EventLocator/LocationDetail?LocationGuid=..."
-    enabled: true
-    filters:
-      event_types:
-        - "Cup"
-```
+Output (all optional):
+- `POKECAL_OUTPUT_DIR` (default `dist`), `POKECAL_CALENDAR_NAME`, `POKECAL_CALENDAR_DESCRIPTION`, `POKECAL_DEFAULT_TIMEZONE` (default `Europe/Paris`).
 
 Filter behaviour:
 - `game_categories`: keep events whose game matches (default `["TCG"]`).
 - `event_types`: optional. When omitted or empty, all event types are kept. Otherwise an event is kept if its type contains one of the listed words, case-insensitively (`"Cup"` matches `League Cup`).
 - `exclude_keywords`: optional. Drop events whose title or type contains any listed word, case-insensitively.
 
-### 3. Generate Calendar Feed
+### 3. Generate Calendar Feeds
 
 ```bash
 uv run pokecal sync
 ```
 
-This exports `dist/pokecal.ics` with all upcoming tournaments discovered for your configured venues.
+This writes one feed per user to `dist/<discord_user_id>.ics` with all upcoming tournaments for that user's enabled stores.
 
 ---
 
@@ -106,12 +83,13 @@ This exports `dist/pokecal.ics` with all upcoming tournaments discovered for you
 PokéCal includes a rich command-line interface:
 
 ### `pokecal sync`
-Scrapes all enabled stores and outputs the calendar feed:
+Scrapes each user's enabled stores and writes `<output dir>/<discord_user_id>.ics`:
 ```bash
 uv run pokecal sync
-# Or with a custom configuration/output:
-uv run pokecal sync --config my_stores.yaml --output my_calendar.ics
+# Only some users (repeatable):
+uv run pokecal sync --user 80351110224678912 --user 53908232506183680
 ```
+Users are isolated: if any store of a user fails, that user's previous `.ics` is left untouched and the other users still sync. Exit code is `0` on success, `1` if any user failed, `2` on usage errors (invalid or unknown `--user`, database unavailable).
 
 ### `pokecal inspect-store <url>`
 Parses a Play! Pokémon Event Locator URL to extract the store name, GUID, coordinates, and local timezone:
@@ -121,19 +99,13 @@ uv run pokecal inspect-store "<STORE_URL>"
 uv run pokecal inspect-store "<STORE_URL>" --fetch
 ```
 
-### `pokecal search <city>`
-Searches the locator for stores around a city and saves favorites to `stores.yaml`:
+### `pokecal search <city> --user <discord_id>`
+Searches the locator for stores around a city and saves favorites for the given Discord user:
 ```bash
-uv run pokecal search Lyon
-# Options: --range 50, --km, --config my_stores.yaml
+uv run pokecal search Lyon --user 80351110224678912
+# Options: --range 50, --km
 ```
-A visible browser window opens (the locator blocks headless browsers). Pick a town from the autocomplete suggestions, then enter the numbers of the stores to save. Each favorite is appended to `stores.yaml` as a `LocationDetail` URL carrying the store's own GUID and coordinates; existing content is left untouched and duplicates are skipped. The search itself is not persisted.
-
-### `pokecal init`
-Creates a starter `stores.yaml` configuration template:
-```bash
-uv run pokecal init
-```
+A visible browser window opens (the locator blocks headless browsers). Pick a town from the autocomplete suggestions, then enter the numbers of the stores to save. Each favorite is stored as a `LocationDetail` URL carrying the store's own GUID and coordinates; duplicates are skipped. The search itself is not persisted.
 
 ---
 
@@ -142,7 +114,7 @@ uv run pokecal init
 ### Google Calendar
 1. On your computer, open [Google Calendar](https://calendar.google.com).
 2. On the left, next to **Other calendars**, click **+** &rarr; **From URL**.
-3. Enter the URL of your hosted `.ics` file (e.g. your GitHub Pages URL: `https://your-username.github.io/pokecal/pokecal.ics`).
+3. Enter the URL of your hosted `.ics` file (e.g. your GitHub Pages URL: `https://your-username.github.io/pokecal/<discord_user_id>.ics`).
 4. Click **Add calendar**. Google Calendar will periodically fetch updates automatically!
 
 ### Apple Calendar (iOS / macOS)
@@ -164,7 +136,7 @@ Every day at 04:00 UTC (or manually via `workflow_dispatch`), the workflow:
 1. Spawns an automated runner.
 2. Scrapes the latest event schedule for all configured stores.
 3. Generates the updated `.ics` file.
-4. Deploys the feed to GitHub Pages at `https://<username>.github.io/<repo>/pokecal.ics`.
+4. Deploys the feed to GitHub Pages at `https://<username>.github.io/<repo>/<discord_user_id>.ics`.
 
 To activate GitHub Pages in your repository:
 - Go to **Settings** &rarr; **Pages**.

@@ -1,70 +1,23 @@
-"""Unit tests for configuration loading."""
+"""Unit tests for environment-based configuration."""
 
-from pokecal.config import add_favorite_store, create_default_config_if_missing, load_config
+import pytest
 
-
-def test_create_and_load_config(tmp_path):
-    cfg_file = tmp_path / "stores.yaml"
-    create_default_config_if_missing(cfg_file)
-
-    assert cfg_file.exists()
-    config = load_config(cfg_file)
-
-    assert config.calendar_name == "Pokémon TCG Events"
-    assert config.ics_path == "dist/pokecal.ics"
-    assert config.default_timezone == "Europe/Paris"
-    assert len(config.stores) == 1
-    store = config.stores[0]
-    assert store.name == "Le coin des barons - Paris Rivoli"
-    assert store.enabled is True
-    assert "TCG" in store.filters.game_categories
+from pokecal.config import database_url, load_config
 
 
-def test_load_config_reads_event_types_per_store(tmp_path):
-    cfg_file = tmp_path / "stores.yaml"
-    cfg_file.write_text(
-        "stores:\n"
-        "  - name: All\n"
-        "    url: https://x\n"
-        "  - name: Cups only\n"
-        "    url: https://y\n"
-        "    filters:\n"
-        "      event_types: [\"Cup\"]\n",
-        encoding="utf-8",
-    )
-
-    all_store, cup_store = load_config(cfg_file).stores
-    assert all_store.filters.event_types is None
-    assert cup_store.filters.event_types == ["Cup"]
+def test_load_config_defaults_and_overrides():
+    assert load_config({}).output_dir == "dist"
+    config = load_config({"POKECAL_OUTPUT_DIR": "out", "POKECAL_DEFAULT_TIMEZONE": "UTC"})
+    assert config.output_dir == "out"
+    assert config.default_timezone == "UTC"
 
 
-def test_add_favorite_store_preserves_file_and_skips_duplicates(tmp_path):
-    cfg_file = tmp_path / "stores.yaml"
-    create_default_config_if_missing(cfg_file)
-    original = cfg_file.read_text(encoding="utf-8")
-    url = "https://events.pokemon.com/EventLocator/LocationDetail?LocationGuid=abc-123&storename=Shop"
-
-    assert add_favorite_store(cfg_file, 'Shop "One"', url, "abc-123") is True
-    assert add_favorite_store(cfg_file, "Shop again", url, "ABC-123") is False
-    assert add_favorite_store(cfg_file, "Other", url.replace("abc-123", "def-456"), "def-456") is True
-
-    text = cfg_file.read_text(encoding="utf-8")
-    assert text.startswith(original.rstrip("\n"))
-    config = load_config(cfg_file)
-    assert [s.name for s in config.stores] == ["Le coin des barons - Paris Rivoli", 'Shop "One"', "Other"]
-    assert config.default_timezone == "Europe/Paris"
+def test_database_url_prefers_database_url_then_postgres_vars():
+    assert database_url({"DATABASE_URL": "postgresql://x/y", "POSTGRES_PASSWORD": "p"}) == "postgresql://x/y"
+    url = database_url({"POSTGRES_PASSWORD": "p@ss", "POSTGRES_HOST": "db"})
+    assert url == "postgresql://pokecal:p%40ss@db:5432/pokecal"
 
 
-def test_add_favorite_store_before_trailing_key_and_empty_list(tmp_path):
-    url = "https://events.pokemon.com/EventLocator/LocationDetail?LocationGuid=abc-123"
-    cfg_file = tmp_path / "stores.yaml"
-    cfg_file.write_text("stores: []\noutput:\n  calendar_name: \"X\"\n", encoding="utf-8")
-
-    assert add_favorite_store(cfg_file, "Shop", url, "abc-123") is True
-    config = load_config(cfg_file)
-    assert [s.name for s in config.stores] == ["Shop"]
-    assert config.calendar_name == "X"
-
-    missing = tmp_path / "new.yaml"
-    assert add_favorite_store(missing, "Shop", url, "abc-123") is True
-    assert len(load_config(missing).stores) == 1
+def test_database_url_requires_credentials():
+    with pytest.raises(ValueError):
+        database_url({})
