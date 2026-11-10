@@ -13,7 +13,7 @@ PokéCal scrapes the Play! Pokémon Event Locator (`https://events.pokemon.com/`
 - CLI: Typer app in `pokecal/cli.py` (`pokecal sync`, `pokecal inspect-store`, `pokecal init`).
 - Tests: `tests/`, run with pytest (`[tool.pytest.ini_options]` in `pyproject.toml`).
 
-Out of scope for now: the Discord bot (planned later, on Pipedream). Do not create bot code, webhooks, or Pipedream configuration.
+Out of scope for now: the Discord bot (planned later, using official Discord API). Do not create bot code, webhooks, or API configuration.
 
 ## 2. Mandatory first step: inspect the live page before coding
 

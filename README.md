@@ -185,7 +185,7 @@ Contributors and AI development agents must read [`AGENT.md`](AGENT.md) before c
 ## Roadmap
 
 - **Store search (implemented):** `pokecal search <city>`; see CLI Commands. Favourite stores may be in different towns from the search point.
-- **Discord bot (planned, later):** a Discord interface built on Pipedream. Out of scope for now.
+- **Discord bot (planned, later):** a Discord interface built on the official Discord API. Out of scope for now.
 
 ---
 
