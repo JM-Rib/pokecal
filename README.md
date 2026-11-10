@@ -41,6 +41,18 @@ uv sync
 uv run playwright install chromium
 ```
 
+### PostgreSQL for a future bot
+
+The Discord bot is not part of PokéCal yet, and the current CLI does not connect to this database. To start PostgreSQL for future bot development or hosting:
+
+```bash
+cp .env.example .env
+# Set POSTGRES_PASSWORD in .env to a strong, unique password before hosting.
+docker compose up -d
+```
+
+The database is available on `localhost:${POSTGRES_PORT:-5432}` from the host. A bot added to this Compose project can connect to `db:5432` on the Compose network. Data persists in the `postgres_data` volume; `docker compose down` preserves it, while `docker compose down -v` deletes it. The host port is bound to localhost and is not exposed publicly.
+
 ### 2. Configuration (`stores.yaml`)
 
 Define your target local game store(s) in `stores.yaml`:
