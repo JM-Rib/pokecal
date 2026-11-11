@@ -52,8 +52,9 @@ jobs:
           selected=()
           for pr in $candidates; do
             # Skip fork PRs: the workflow pushes to the PR branch.
-            same_repo="$(gh api "repos/$GH_REPO/pulls/$pr" --jq '.head.repo.full_name == .base.repo.full_name')"
-            [ "$same_repo" = "true" ] || continue
+            # Also skip PRs another run is currently working on.
+            eligible="$(gh api "repos/$GH_REPO/pulls/$pr" --jq '.head.repo.full_name == .base.repo.full_name and ([.labels[].name] | index("agent-working") | not)')"
+            [ "$eligible" = "true" ] || continue
             since="$(gh api --paginate "repos/$GH_REPO/issues/$pr/comments" --jq '
               .[] | select(.user.login == "github-actions[bot]")
               | (.body | capture("review-followup:since=(?<t>[^ ]+) ").t? // empty)' | sort | tail -n1)"
@@ -95,6 +96,15 @@ jobs:
             echo "::error::Set the COPILOT_TOKEN repository secret before running this workflow."
             exit 1
           fi
+
+      - name: Mark PR as being worked on
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ matrix.pr }}
+        run: |
+          gh label create agent-working --color 1D76DB --description "Currently being worked on by Copilot" --force
+          gh label create agent-done --color 0E8A16 --description "Copilot processed the latest owner feedback" --force
+          gh pr edit "$PR" --remove-label agent-done --add-label agent-working
 
       - name: Check out repository
         uses: actions/checkout@v4
@@ -251,3 +261,19 @@ jobs:
             echo "<!-- review-followup:since=$(cat .copilot/now) -->"
           } > "$out/pr-comment.md"
           gh pr comment "$PR" --body-file "$out/pr-comment.md"
+
+      - name: Mark PR as processed
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ matrix.pr }}
+        run: |
+          gh pr edit "$PR" --remove-label agent-working --add-label agent-done
+
+      - name: Release PR after failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ matrix.pr }}
+        run: |
+          gh pr edit "$PR" --remove-label agent-working
