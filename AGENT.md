@@ -9,7 +9,7 @@ PokéCal scrapes the Play! Pokémon Event Locator (`https://events.pokemon.com/`
 - Language: Python 3.12+ (`.python-version`, `pyproject.toml`).
 - Package manager: `uv`. Never use bare `pip` for project work.
 - Scraping: Python Playwright (`pokecal/scraper.py`). The site is an OutSystems single-page application (SPA), so content is rendered by JavaScript.
-- Config: per-user stores live in Postgres (`pokecal/db.py`, `StoreRepository` protocol, Discord IDs stored as TEXT); output and connection settings come from environment variables (`pokecal/config.py`); models are Pydantic classes in `pokecal/models.py`.
+- Config: stores are shared (one `stores` row per location GUID) and users link to them in `user_stores` with their own `enabled`/`filters`; they live in Postgres (`pokecal/db.py`, `StoreRepository` protocol, Discord IDs stored as TEXT); output and connection settings come from environment variables (`pokecal/config.py`); models are Pydantic classes in `pokecal/models.py`.
 - CLI: Typer app in `pokecal/cli.py` (`pokecal sync [--user ID]`, `pokecal search <city> --user ID`, `pokecal inspect-store`).
 - Tests: `tests/`, run with pytest (`[tool.pytest.ini_options]` in `pyproject.toml`).
 

@@ -1,4 +1,4 @@
-"""Per-user sync orchestration with fault isolation."""
+"""Sync orchestration: shared per-store scraping, per-user feeds, fault isolation."""
 
 from __future__ import annotations
 
@@ -7,7 +7,8 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 
 from pokecal.db import StoreRepository
-from pokecal.models import PokemonEvent, StoreConfig
+from pokecal.models import PokemonEvent, StoreConfig, StoreFilterConfig, UserStore
+from pokecal.scraper import filter_events
 
 logger = logging.getLogger(__name__)
 
@@ -21,19 +22,38 @@ class SyncResult:
 def sync_users(
     repo: StoreRepository,
     user_ids: Sequence[str],
-    scrape: Callable[[Sequence[StoreConfig]], list[PokemonEvent]],
+    scrape_store: Callable[[StoreConfig], list[PokemonEvent]],
     export: Callable[[str, list[PokemonEvent]], None],
 ) -> SyncResult:
-    """Scrape and export each user's feed; one user's failure never affects the others.
+    """Scrape each distinct store once and export each user's feed.
 
-    A user's feed is only exported after all of their enabled stores were scraped,
-    so a failed user keeps their previous file.
+    Stores are scraped unfiltered and shared by every user referencing them; each user's
+    own filters are applied afterwards. A store failure fails only the users who have it
+    enabled, and a failed user keeps their previous file.
     """
     result = SyncResult()
-    for user_id in user_ids:
+    user_stores = {uid: [s for s in repo.list_stores(uid) if s.enabled] for uid in user_ids}
+    cache: dict[str, list[PokemonEvent] | Exception] = {}
+
+    def events_for(store: UserStore) -> list[PokemonEvent]:
+        if store.location_guid not in cache:
+            try:
+                cache[store.location_guid] = scrape_store(
+                    StoreConfig(name=store.name, url=store.url, filters=StoreFilterConfig(game_categories=[]))
+                )
+            except Exception as exc:
+                logger.error("Scrape failed for store %s: %s", store.name, exc)
+                cache[store.location_guid] = exc
+        cached = cache[store.location_guid]
+        if isinstance(cached, Exception):
+            raise cached
+        return cached
+
+    for user_id, stores in user_stores.items():
         try:
-            stores = [s for s in repo.list_stores(user_id) if s.enabled]
-            events = scrape(stores)
+            events: list[PokemonEvent] = []
+            for store in stores:
+                events.extend(filter_events(events_for(store), store.filters))
             export(user_id, events)
         except Exception as exc:
             logger.error("Sync failed for user %s: %s", user_id, exc)
