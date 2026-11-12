@@ -9,8 +9,8 @@ PokéCal scrapes the Play! Pokémon Event Locator (`https://events.pokemon.com/`
 - Language: Python 3.12+ (`.python-version`, `pyproject.toml`).
 - Package manager: `uv`. Never use bare `pip` for project work.
 - Scraping: Python Playwright (`pokecal/scraper.py`). The site is an OutSystems single-page application (SPA), so content is rendered by JavaScript.
-- Config: `stores.yaml`, loaded by `pokecal/config.py` and validated by Pydantic models in `pokecal/models.py`.
-- CLI: Typer app in `pokecal/cli.py` (`pokecal sync`, `pokecal inspect-store`, `pokecal init`).
+- Config: per-user stores live in Postgres (`pokecal/db.py`, `StoreRepository` protocol, Discord IDs stored as TEXT); output and connection settings come from environment variables (`pokecal/config.py`); models are Pydantic classes in `pokecal/models.py`.
+- CLI: Typer app in `pokecal/cli.py` (`pokecal sync [--user ID]`, `pokecal search <city> --user ID`, `pokecal inspect-store`).
 - Tests: `tests/`, run with pytest (`[tool.pytest.ini_options]` in `pyproject.toml`).
 
 Out of scope for now: the Discord bot (planned later, using official Discord API). Do not create bot code, webhooks, or API configuration.
@@ -23,14 +23,14 @@ Minimum inspection checklist, and what to record in your notes or PR description
 
 1. Home page search bar: the input element, the autocomplete request (URL, method, query parameter, response shape), and each suggestion's fields. Confirm whether a suggestion carries latitude/longitude directly or whether a second request is needed to resolve coordinates.
 2. Results page: the URL reached after a town is chosen, and which request or DOM elements supply the store list (name, `LocationGuid`, address, distance, coordinates).
-3. Store links: the `LocationDetail` URL pattern already used in `stores.yaml`, so that stores found by search can be stored in the same format.
+3. Store links: the `LocationDetail` URL pattern already used for saved favorites, so that stores found by search can be stored in the same format.
 4. Rendering: whether the data is present in the raw HTML or only after JavaScript runs. If only after rendering, say so, and use Playwright in the implementation.
 
 If the page cannot be reached or its structure differs from what the feature needs, stop and report the findings to the user. Do not guess selectors.
 
 ## 3. Feature specification: store search and favorites
 
-Status: implemented in `pokecal/search.py`, `pokecal/config.py` (`add_favorite_store`) and `pokecal search`.
+Status: implemented in `pokecal/search.py`, `pokecal/db.py` and `pokecal search`.
 
 Live-site findings (inspected with headed Chromium; headless Chromium is blocked by Incapsula/hCaptcha):
 - The city input `#b3-Input_LocationName` is a Google Places widget (`.pac-item`). Picking a suggestion navigates to the coordinate URL below; no site API is called for suggestions.
@@ -53,20 +53,20 @@ Live-site findings (inspected with headed Chromium; headless Chromium is blocked
    - `range`: search radius (25 in the example, same unit as `iskm`: `iskm=false` means miles).
    - `startdate`: the current date in `YYYY-MM-DD`. Compute it at runtime; do not hardcode it.
 5. The user picks one or more stores from the list and marks them as favorites.
-6. Favorites are saved in `stores.yaml` under `stores:`, in the same shape as existing entries (`name`, `url`, `enabled`, `filters`).
+6. Favorites are saved in the database for the given Discord user, in the shape `name`, `url`, `enabled`, `filters`.
 
 ### 3.2 Rules that follow from the design
 
 - A search centre and a favorite store are independent. A user's favorite stores are not necessarily in the town they searched. Never derive a store's location from the search town, and never assume that stores in one search share a town.
 - A favorite store must keep its own coordinates and `LocationGuid` (taken from the store's own data, not the search point), so its events can be scraped with the existing `LocationDetail` flow.
-- Search results are a transient view. Only favorites are persisted, and only in `stores.yaml`.
+- Search results are a transient view. Only favorites are persisted, and only in the database.
 - Keep the URL builder a pure function (inputs: lat, lon, range, unit flag, date, locale → output: URL string). It must not perform network calls.
 
 ### 3.3 Suggested module layout (adjust after inspection)
 
 - `pokecal/search.py`: URL builder for the search view, autocomplete client, and parsing of the results list. Parsing functions take HTML or JSON strings as input so they can be unit-tested without network access.
 - `pokecal/models.py`: Pydantic models for search results and suggestions, following the existing style.
-- `pokecal/config.py`: a helper that appends a favorite to `stores.yaml` without dropping existing keys or comments-equivalent structure. Preserve the file's `output:` block.
+- `pokecal/db.py`: `StoreRepository` protocol and its Postgres implementation. Tests use in-memory fakes, never a live database.
 - `pokecal/cli.py`: a command (for example `pokecal search <city>`) that prints suggestions and results. Keep it thin; logic belongs in other modules.
 
 ## 4. Testing rules (strict)

@@ -15,6 +15,11 @@ from pokecal.parser import parse_store_url
 
 logger = logging.getLogger(__name__)
 
+
+class ScrapeError(RuntimeError):
+    """Raised when a store page could not be scraped."""
+
+
 DEFAULT_USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
     "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -157,7 +162,10 @@ class PokemonScraper:
         self.timeout_ms = timeout_ms
 
     async def scrape_store(self, store_cfg: StoreConfig) -> list[PokemonEvent]:
-        """Scrape all events for a single store."""
+        """Scrape all events for a single store.
+
+        Raises ScrapeError when the page cannot be loaded or read.
+        """
         if not store_cfg.enabled:
             logger.info("Store '%s' is disabled. Skipping.", store_cfg.name)
             return []
@@ -208,10 +216,9 @@ class PokemonScraper:
                 )
             except Exception as exc:
                 logger.error("Error scraping store %s: %s", store_cfg.name, exc)
+                raise ScrapeError(f"Failed to scrape store '{store_cfg.name}': {exc}") from exc
+            finally:
                 await browser.close()
-                return []
-
-            await browser.close()
 
         parsed_events = [ev for ev in (parse_event_card_data(raw, store_meta) for raw in cards_data) if ev]
         events = filter_events(parsed_events, store_cfg.filters)

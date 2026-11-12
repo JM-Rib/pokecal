@@ -49,13 +49,12 @@ class StoreConfig(BaseModel):
 
 
 class PokéCalConfig(BaseModel):
-    """Global configuration loaded from stores.yaml."""
+    """Output settings loaded from environment variables."""
 
     calendar_name: str = "Pokémon TCG Events"
     calendar_description: str = "Pokémon TCG Tournaments and League Events synchronized by PokéCal"
-    ics_path: str = "dist/pokecal.ics"
+    output_dir: str = "dist"
     default_timezone: str = "Europe/Paris"
-    stores: list[StoreConfig] = Field(default_factory=list)
 
 
 class PokemonEvent(BaseModel):

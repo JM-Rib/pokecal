@@ -192,6 +192,8 @@ def export_ical_file(
         default_timezone=default_timezone,
     )
 
-    out.write_bytes(ical_bytes)
+    tmp = out.with_name(out.name + ".tmp")
+    tmp.write_bytes(ical_bytes)
+    tmp.replace(out)
     logger.info("Successfully exported %d events to %s", len(events), out.resolve())
     return out

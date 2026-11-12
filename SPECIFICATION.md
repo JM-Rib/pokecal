@@ -153,21 +153,11 @@ END:VCALENDAR
 
 ---
 
-## 7. Configuration Specification (`stores.yaml`)
+## 7. Configuration Specification
 
-```yaml
-# PokéCal Stores Configuration
-output:
-  ics_path: "dist/pokecal.ics"
-  calendar_name: "Pokémon TCG Events"
+Favorite stores are stored per Discord user (snowflake ID, as text) in Postgres: a `users` table and a `user_stores` table (`discord_id`, `location_guid`, `name`, `url`, `enabled`, `filters` JSONB). Access goes through the `StoreRepository` protocol in `pokecal/db.py`.
 
-stores:
-  - name: "Le coin des barons - Paris Rivoli"
-    url: "https://events.pokemon.com/EventLocator/LocationDetail?EventDetailGUID=&range=25&latitude=48.8575475&startdate=2026-11-07&LocationGuid=d31263f1-80fb-0a60-8b04-72c8887c24f2&storename=LE+COIN+DES+BARONS+-+PARIS+RIVOLI&iskm=false&locale=fr-FR&LocationName=LE+COIN+DES+BARONS+-+PARIS+RIVOLI&longitude=2.3513765"
-    enabled: true
-    filters:
-      game_categories: ["TCG"] # Exclude VGC (video games) or GO if desired
-```
+Environment: `DATABASE_URL` or `POSTGRES_*` for the connection; `POKECAL_OUTPUT_DIR`, `POKECAL_CALENDAR_NAME`, `POKECAL_CALENDAR_DESCRIPTION`, `POKECAL_DEFAULT_TIMEZONE` for output. One feed is written per user at `<output dir>/<discord_user_id>.ics`.
 
 ---
 
