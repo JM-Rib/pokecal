@@ -20,8 +20,10 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  implement:
+  select:
     runs-on: ubuntu-latest
+    outputs:
+      issues: ${{ steps.issue.outputs.numbers }}
     env:
       GH_REPO: ${{ github.repository }}
       ISSUE_NUMBER: ${{ inputs.issue_number }}
@@ -51,31 +53,41 @@ jobs:
               echo "::error::Issue #$ISSUE_NUMBER must be open, labeled agent-ready and authored by a repository member or github-actions[bot]."
               exit 1
             fi
+            issue_numbers="$(jq -cn --argjson number "$issue_number" '[$number]')"
           else
-            issue_number="$(gh api "repos/$GH_REPO/issues?state=open&labels=agent-ready&sort=created&direction=asc&per_page=100" --jq "
+            issue_numbers="$(gh api "repos/$GH_REPO/issues?state=open&labels=agent-ready&sort=created&direction=asc&per_page=100" --jq "
               [.[] | select((.pull_request | not)
-                and ((.author_association | IN($trusted)) or .user.login == \"github-actions[bot]\"))] | .[0].number // empty
+                and ((.author_association | IN($trusted)) or .user.login == \"github-actions[bot]\")) | .number]
             ")"
           fi
 
-          if [ -z "$issue_number" ]; then
+          if [ "$issue_numbers" = "[]" ]; then
             echo "No eligible agent-ready issue found."
-            exit 0
           fi
 
-          echo "number=$issue_number" >> "$GITHUB_OUTPUT"
+          echo "numbers=$issue_numbers" >> "$GITHUB_OUTPUT"
+
+  implement:
+    needs: select
+    if: needs.select.outputs.issues != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        issue_number: ${{ fromJSON(needs.select.outputs.issues) }}
+    env:
+      GH_REPO: ${{ github.repository }}
+      ISSUE_NUMBER: ${{ matrix.issue_number }}
+    steps:
 
       - name: Check out repository
-        if: steps.issue.outputs.number
         uses: actions/checkout@v4
         with:
           persist-credentials: false
 
       - name: Claim issue and snapshot trusted content
-        if: steps.issue.outputs.number
         env:
           GH_TOKEN: ${{ github.token }}
-          ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
         run: |
           gh label create agent-working --color 1D76DB --description "Currently being implemented by Copilot" --force
           gh label create needs-refinement --color FBCA04 --description "Needs clarification before Copilot can implement it" --force
@@ -93,16 +105,13 @@ jobs:
           } > .copilot/issue.md
 
       - name: Install GitHub Copilot CLI
-        if: steps.issue.outputs.number
         run: npm install --global @github/copilot
 
       # The agent runs without any write-capable credential: COPILOT_GITHUB_TOKEN
       # only needs the "Copilot Requests" permission. Publishing happens in a later step.
       - name: Implement issue with Copilot
-        if: steps.issue.outputs.number
         env:
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_TOKEN }}
-          ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
         run: |
           cat > .copilot/prompt.md <<EOF
           Implement GitHub issue #$ISSUE_NUMBER for this repository.
@@ -145,10 +154,8 @@ jobs:
           copilot --prompt "$(cat .copilot/prompt.md)" --allow-all-tools --trust-folder
 
       - name: Publish result
-        if: steps.issue.outputs.number
         env:
           GH_TOKEN: ${{ github.token }}
-          ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           out=.copilot/out
@@ -190,11 +197,15 @@ jobs:
 
           grep -qi "closes #$ISSUE_NUMBER" "$out/body.md" || printf '\n\nCloses #%s\n' "$ISSUE_NUMBER" >> "$out/body.md"
           gh pr create --base "$DEFAULT_BRANCH" --head "$branch" --title "$(head -n1 "$out/title.txt")" --body-file "$out/body.md"
+          gh issue edit "$ISSUE_NUMBER" --remove-label agent-working
 
       - name: Return uncompleted issue to the queue
-        if: steps.issue.outputs.number && failure()
+        if: failure()
         env:
           GH_TOKEN: ${{ github.token }}
-          ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
         run: |
+          if gh pr list --head "copilot/issue-$ISSUE_NUMBER" --state open --json number --jq 'length > 0' | grep -qx true; then
+            gh issue edit "$ISSUE_NUMBER" --remove-label agent-working
+            exit 0
+          fi
           gh issue edit "$ISSUE_NUMBER" --remove-label agent-working --add-label agent-ready
