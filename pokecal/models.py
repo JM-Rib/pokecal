@@ -48,6 +48,12 @@ class StoreConfig(BaseModel):
     filters: StoreFilterConfig = Field(default_factory=StoreFilterConfig)
 
 
+class UserStore(StoreConfig):
+    """A user's favorite of a shared store, with the user's own enabled flag and filters."""
+
+    location_guid: str
+
+
 class PokéCalConfig(BaseModel):
     """Output settings loaded from environment variables."""
 
