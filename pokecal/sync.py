@@ -32,6 +32,7 @@ def sync_users(
     enabled, and a failed user keeps their previous file.
     """
     result = SyncResult()
+    # Step 1: for every requested user, load their store links (user_stores joined with stores) and keep enabled ones.
     user_stores = {uid: [s for s in repo.list_stores(uid) if s.enabled] for uid in user_ids}
     cache: dict[str, list[PokemonEvent] | Exception] = {}
 

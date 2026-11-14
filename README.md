@@ -55,7 +55,7 @@ The database is available on `localhost:${POSTGRES_PORT:-5432}` from the host. A
 
 ### 2. Configuration
 
-Stores are saved per user in Postgres (schema is created automatically). Users are keyed by their Discord user ID (a snowflake, stored as text). Stores are shared: the `stores` table holds each store once, keyed by its location GUID, and `user_stores` links users to it with their own `enabled` flag and `filters` (`game_categories`, `event_types`, `exclude_keywords`). Databases created by earlier versions (name/url on each `user_stores` row) are migrated automatically on the next connection: distinct stores are copied into `stores` and the old columns are dropped.
+Stores are saved per user in Postgres (schema is created automatically). Users are keyed by their Discord user ID (a snowflake, stored as text). Stores are shared: the `stores` table holds each store once, keyed by its location GUID, and `user_stores` links users to it with their own `enabled` flag and `filters` (`game_categories`, `event_types`, `exclude_keywords`).
 
 Connection (same variables as `.env.example`; export them in your shell or pass them through your container environment):
 - `DATABASE_URL`, or `POSTGRES_PASSWORD` (required) with optional `POSTGRES_USER`, `POSTGRES_DB`, `POSTGRES_PORT`, `POSTGRES_HOST` (default `localhost`; use `db` inside the Compose network).

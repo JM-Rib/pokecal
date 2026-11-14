@@ -60,21 +60,6 @@ CREATE TABLE IF NOT EXISTS user_stores (
 );
 """
 
-# Older versions kept name/url on each user_stores row. Move them into the shared stores table.
-LEGACY_COLUMN_CHECK = (
-    "SELECT 1 FROM information_schema.columns "
-    "WHERE table_schema = current_schema() AND table_name = 'user_stores' AND column_name = 'url'"
-)
-LEGACY_MIGRATION = """
-INSERT INTO stores (location_guid, name, url, created_at)
-SELECT DISTINCT ON (location_guid) location_guid, name, url, created_at
-FROM user_stores ORDER BY location_guid, created_at
-ON CONFLICT DO NOTHING;
-ALTER TABLE user_stores
-    ADD CONSTRAINT user_stores_location_guid_fkey FOREIGN KEY (location_guid) REFERENCES stores(location_guid);
-ALTER TABLE user_stores DROP COLUMN name, DROP COLUMN url;
-"""
-
 
 class PostgresStoreRepository:
     """StoreRepository backed by Postgres; the schema is created on connect."""
@@ -82,12 +67,6 @@ class PostgresStoreRepository:
     def __init__(self, conninfo: str) -> None:
         self.conn = psycopg.connect(conninfo, autocommit=True)
         self.conn.execute(SCHEMA)
-        self._migrate_legacy()
-
-    def _migrate_legacy(self) -> None:
-        with self.conn.transaction():
-            if self.conn.execute(LEGACY_COLUMN_CHECK).fetchone():
-                self.conn.execute(LEGACY_MIGRATION)
 
     def close(self) -> None:
         self.conn.close()
