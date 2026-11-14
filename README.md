@@ -55,7 +55,7 @@ The database is available on `localhost:${POSTGRES_PORT:-5432}` from the host. A
 
 ### 2. Configuration
 
-Stores are saved per user in Postgres (schema is created automatically). Users are keyed by their Discord user ID (a snowflake, stored as text). Each user-store row holds its `enabled` flag and `filters` (`game_categories`, `event_types`, `exclude_keywords`).
+Stores are saved per user in Postgres (schema is created automatically). Users are keyed by their Discord user ID (a snowflake, stored as text). Each user also has a random `feed_token` (created on first sync) used as the feed file name instead of the Discord ID. Each user-store row holds its `enabled` flag and `filters` (`game_categories`, `event_types`, `exclude_keywords`).
 
 Connection (same variables as `.env.example`; export them in your shell or pass them through your container environment):
 - `DATABASE_URL`, or `POSTGRES_PASSWORD` (required) with optional `POSTGRES_USER`, `POSTGRES_DB`, `POSTGRES_PORT`, `POSTGRES_HOST` (default `localhost`; use `db` inside the Compose network).
@@ -74,7 +74,7 @@ Filter behaviour:
 uv run pokecal sync
 ```
 
-This writes one feed per user to `dist/<discord_user_id>.ics` with all upcoming tournaments for that user's enabled stores.
+This writes one feed per user to `dist/<feed_token>.ics` with all upcoming tournaments for that user's enabled stores.
 
 ---
 
@@ -83,13 +83,16 @@ This writes one feed per user to `dist/<discord_user_id>.ics` with all upcoming 
 PokéCal includes a rich command-line interface:
 
 ### `pokecal sync`
-Scrapes each user's enabled stores and writes `<output dir>/<discord_user_id>.ics`:
+Scrapes each user's enabled stores and writes `<output dir>/<feed_token>.ics`, where the feed token is a random, unguessable per-user string stored in the database (stable across syncs, so subscribed URLs keep working; console output never prints Discord IDs):
 ```bash
 uv run pokecal sync
 # Only some users (repeatable):
 uv run pokecal sync --user 80351110224678912 --user 53908232506183680
 ```
 Users are isolated: if any store of a user fails, that user's previous `.ics` is left untouched and the other users still sync. Exit code is `0` on success, `1` if any user failed, `2` on usage errors (invalid or unknown `--user`, database unavailable).
+
+### `pokecal regenerate-token --user <discord_id>`
+Replaces the user's feed token (e.g. if the URL leaked) and removes the old local file. Run `pokecal sync` afterwards and re-subscribe with the new URL.
 
 ### `pokecal inspect-store <url>`
 Parses a Play! Pokémon Event Locator URL to extract the store name, GUID, coordinates, and local timezone:
@@ -114,7 +117,7 @@ A visible browser window opens (the locator blocks headless browsers). Pick a to
 ### Google Calendar
 1. On your computer, open [Google Calendar](https://calendar.google.com).
 2. On the left, next to **Other calendars**, click **+** &rarr; **From URL**.
-3. Enter the URL of your hosted `.ics` file (e.g. your GitHub Pages URL: `https://your-username.github.io/pokecal/<discord_user_id>.ics`).
+3. Enter the URL of your hosted `.ics` file (e.g. your GitHub Pages URL: `https://your-username.github.io/pokecal/<feed_token>.ics`).
 4. Click **Add calendar**. Google Calendar will periodically fetch updates automatically!
 
 ### Apple Calendar (iOS / macOS)
@@ -136,7 +139,7 @@ Every day at 04:00 UTC (or manually via `workflow_dispatch`), the workflow:
 1. Spawns an automated runner.
 2. Scrapes the latest event schedule for all configured stores.
 3. Generates the updated `.ics` file.
-4. Deploys the feed to GitHub Pages at `https://<username>.github.io/<repo>/<discord_user_id>.ics`.
+4. Deploys the feed to GitHub Pages at `https://<username>.github.io/<repo>/<feed_token>.ics`.
 
 To activate GitHub Pages in your repository:
 - Go to **Settings** &rarr; **Pages**.

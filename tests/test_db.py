@@ -14,3 +14,11 @@ def test_validate_user_id_accepts_full_snowflake_range():
 def test_validate_user_id_rejects_non_snowflakes(bad):
     with pytest.raises(ValueError):
         validate_user_id(bad)
+
+
+def test_new_feed_token_is_unguessable_and_filename_safe():
+    from pokecal.db import new_feed_token
+
+    tokens = {new_feed_token() for _ in range(50)}
+    assert len(tokens) == 50
+    assert all(len(t) >= 43 and t.replace("-", "").replace("_", "").isalnum() for t in tokens)
