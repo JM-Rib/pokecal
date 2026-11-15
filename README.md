@@ -55,7 +55,7 @@ The database is available on `localhost:${POSTGRES_PORT:-5432}` from the host. A
 
 ### 2. Configuration
 
-Stores are saved per user in Postgres (schema is created automatically). Users are keyed by their Discord user ID (a snowflake, stored as text). Each user also has a random `feed_token` (created on first sync) used as the feed file name instead of the Discord ID. Each user-store row holds its `enabled` flag and `filters` (`game_categories`, `event_types`, `exclude_keywords`).
+Stores are saved per user in Postgres (schema is created automatically). Users are keyed by their Discord user ID (a snowflake, stored as text). Each user also has a random `feed_token` (created on first sync) used as the feed file name instead of the Discord ID. Stores are shared: the `stores` table holds each store once, keyed by its location GUID, and `user_stores` links users to it with their own `enabled` flag and `filters` (`game_categories`, `event_types`, `exclude_keywords`).
 
 Connection (same variables as `.env.example`; export them in your shell or pass them through your container environment):
 - `DATABASE_URL`, or `POSTGRES_PASSWORD` (required) with optional `POSTGRES_USER`, `POSTGRES_DB`, `POSTGRES_PORT`, `POSTGRES_HOST` (default `localhost`; use `db` inside the Compose network).
@@ -89,7 +89,7 @@ uv run pokecal sync
 # Only some users (repeatable):
 uv run pokecal sync --user 80351110224678912 --user 53908232506183680
 ```
-Users are isolated: if any store of a user fails, that user's previous `.ics` is left untouched and the other users still sync. Exit code is `0` on success, `1` if any user failed, `2` on usage errors (invalid or unknown `--user`, database unavailable).
+Each distinct store is scraped once per run and its events are reused for every user having it enabled (each user's filters are applied afterwards). Users are isolated: if any store of a user fails, that user's previous `.ics` is left untouched and the other users still sync. Exit code is `0` on success, `1` if any user failed, `2` on usage errors (invalid or unknown `--user`, database unavailable).
 
 ### `pokecal regenerate-token --user <discord_id>`
 Replaces the user's feed token (e.g. if the URL leaked) and removes the old local file. Run `pokecal sync` afterwards and re-subscribe with the new URL.
