@@ -79,7 +79,7 @@ def sync(
     scraper = PokemonScraper(headless=headless)
 
     def export(user_id: str, events: list[PokemonEvent]) -> None:
-        dest = Path(config.output_dir) / f"{user_id}.ics"
+        dest = Path(config.output_dir) / f"{repo.get_feed_token(user_id)}.ics"
         export_ical_file(
             events=events,
             output_path=dest,
@@ -87,7 +87,7 @@ def sync(
             calendar_description=config.calendar_description,
             default_timezone=config.default_timezone,
         )
-        console.print(f"[green]✓[/green] {user_id}: {len(events)} event(s) → [underline]{dest.resolve()}[/underline]")
+        console.print(f"[green]✓[/green] {len(events)} event(s) → [underline]{dest.resolve()}[/underline]")
 
     result = sync_users(
         repo,
@@ -96,10 +96,27 @@ def sync(
         export=export,
     )
 
-    for user_id, error in result.failed.items():
-        console.print(f"[red]✗ {user_id}: {error}[/red]")
+    for i, error in enumerate(result.failed.values(), 1):
+        console.print(f"[red]✗ failed feed {i}: {error}[/red]")
     if result.failed:
         raise typer.Exit(code=1)
+
+
+@app.command()
+def regenerate_token(
+    user: str = typer.Option(..., "--user", "-u", help="Discord user ID whose feed token to replace."),
+) -> None:
+    """Replace a user's feed token; the old feed URL stops being updated."""
+    try:
+        user = validate_user_id(user)
+    except ValueError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=2)
+    repo = open_repository()
+    old = repo.get_feed_token(user)
+    new = repo.regenerate_feed_token(user)
+    (Path(load_config().output_dir) / f"{old}.ics").unlink(missing_ok=True)
+    console.print(f"[green]✓[/green] New feed file name: {new}.ics (run `pokecal sync` to publish it)")
 
 
 @app.command()

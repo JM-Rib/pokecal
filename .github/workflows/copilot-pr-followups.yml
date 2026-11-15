@@ -104,7 +104,7 @@ jobs:
         run: |
           gh label create agent-working --color 1D76DB --description "Currently being worked on by Copilot" --force
           gh label create agent-done --color 0E8A16 --description "Copilot processed the latest owner feedback" --force
-          gh pr edit "$PR" --remove-label agent-done --add-label agent-working
+          gh pr edit "$PR" --remove-label agent-done --remove-label agent-ready --add-label agent-working
 
       - name: Check out repository
         uses: actions/checkout@v4
