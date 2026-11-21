@@ -151,7 +151,7 @@ jobs:
             echo "## Owner inline review comments"
             gh api --paginate "repos/$GH_REPO/pulls/$PR/comments" --jq '
               .[] | select(.author_association == "OWNER")
-              | "### " + .path + " (" + .created_at + ")\n```diff\n" + (.diff_hunk // "") + "\n```\n" + .body + "\n"'
+                | "### Inline comment ID " + (.id|tostring) + " — " + .path + " (" + .created_at + ")\n```diff\n" + (.diff_hunk // "") + "\n```\n" + .body + "\n"'
             echo "## Owner PR comments"
             gh api --paginate "repos/$GH_REPO/issues/$PR/comments" --jq '
               .[] | select(.author_association == "OWNER")
@@ -191,8 +191,18 @@ jobs:
 
           $part1
 
-          Part 2 - questions. If the owner asked a question, answer it in summary.md. Do not
-          answer questions that were already answered.
+          Part 2 - review replies. For every owner inline review comment that asks for an
+          explanation, clarification or understanding of the code, write one corresponding
+          object to .copilot/out/review-replies.json:
+            {"comment_id": 123, "body": "insightful explanation of the code"}
+          Use the exact inline comment ID from .copilot/feedback.md. Reply only to comments
+          that need an answer, do not combine multiple replies, and do not answer questions
+          that were already answered. Replies must explain the relevant code and its reasoning
+          accurately, using the diff and current source. Use an empty array when no inline
+          replies are needed.
+
+          For owner questions that are not attached to an inline review comment, answer them
+          in summary.md. Do not answer questions that were already answered.
 
           Part 3 - follow-up issues, ONLY on explicit request. Create an issue / user story only
           when the owner explicitly asks for a new ticket or says to plan/defer something to a
@@ -204,9 +214,10 @@ jobs:
           requested) of objects:
             {"title": "short imperative title",
              "body": "user story or problem statement, concrete acceptance criteria, relevant files, and the owner's request it comes from"}
-          Write .copilot/out/summary.md, posted as a PR comment: 2-10 lines with answers to the
-          owner's questions, what you changed in the code (if anything), remarks you did not
-          address and why, and which issues you created. Stop afterwards.
+          Write .copilot/out/summary.md, used only for overall status and answers to
+          non-inline questions: 2-10 lines with what you changed in the code (if anything),
+          remarks you did not address and why, and which issues you created. Do not repeat
+          inline explanations in this summary. Stop afterwards.
           EOF
           copilot --prompt "$(cat .copilot/prompt.md)" --allow-all-tools --trust-folder
 
@@ -226,6 +237,8 @@ jobs:
           fi
           jq -e 'type == "array" and length <= 5 and all(.[]; (.title|type=="string" and length>0) and (.body|type=="string" and length>0))' \
             "$out/issues.json" > /dev/null || { echo "::error::Invalid or missing issues.json."; exit 1; }
+          jq -e 'type == "array" and all(.[]; (.comment_id|type=="number") and (.body|type=="string" and length>0))' \
+            "$out/review-replies.json" > /dev/null || { echo "::error::Invalid or missing review-replies.json."; exit 1; }
           [ -s "$out/summary.md" ] || { echo "::error::Missing summary.md."; exit 1; }
 
           pushed="no"
@@ -250,9 +263,25 @@ jobs:
             links="$links- $url"$'\n'
           done
 
+          while IFS= read -r reply; do
+            comment_id="$(jq -r '.comment_id' <<<"$reply")"
+            jq -r '.body' <<<"$reply" > "$out/reply-body.md"
+            gh api "repos/$GH_REPO/pulls/$PR/comments" \
+              --method POST \
+              -f body="$(cat "$out/reply-body.md")" \
+              -F in_reply_to="$comment_id" > /dev/null
+          done < <(jq -c '.[]' "$out/review-replies.json")
+
           {
             echo "## Review feedback addressed"
             cat "$out/summary.md"
+            echo
+            reply_count="$(jq length "$out/review-replies.json")"
+            if [ "$reply_count" -gt 0 ]; then
+              echo "Posted $reply_count threaded explanation(s) on the relevant inline review comment(s)."
+            else
+              echo "No threaded review explanations were needed."
+            fi
             echo
             if [ "$pushed" = "yes" ]; then echo "Pushed a commit to this branch."; else echo "No code changes pushed."; fi
             echo
