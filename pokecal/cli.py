@@ -52,7 +52,7 @@ def sync(
         help="Run browser in headless mode.",
     ),
 ) -> None:
-    """Scrape each user's enabled stores and write one .ics feed per user."""
+    """Scrape each distinct enabled store once and write one .ics feed per user."""
     console.print(Panel(f"[bold yellow]PokéCal[/bold yellow] [dim]v{__version__}[/dim]\nSyncing Play! Pokémon TCG events..."))
 
     config = load_config()
@@ -92,7 +92,7 @@ def sync(
     result = sync_users(
         repo,
         targets,
-        scrape=lambda stores: asyncio.run(scraper.scrape_stores(stores)),
+        scrape_store=lambda store: asyncio.run(scraper.scrape_store(store)),
         export=export,
     )
 
