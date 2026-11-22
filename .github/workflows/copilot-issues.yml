@@ -1,8 +1,8 @@
 name: Implement agent-ready issue
 
 on:
-  schedule:
-    - cron: "0 4 * * *"
+  issues:
+    types: [labeled]
   workflow_dispatch:
     inputs:
       issue_number:
@@ -21,12 +21,13 @@ concurrency:
 
 jobs:
   select:
+    if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'agent-ready'
     runs-on: ubuntu-latest
     outputs:
       issues: ${{ steps.issue.outputs.numbers }}
     env:
       GH_REPO: ${{ github.repository }}
-      ISSUE_NUMBER: ${{ inputs.issue_number }}
+      ISSUE_NUMBER: ${{ inputs.issue_number || github.event.issue.number }}
     steps:
       - name: Check Copilot authentication
         env:
