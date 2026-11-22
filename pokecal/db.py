@@ -36,6 +36,16 @@ class StoreRepository(Protocol):
         """Save a store for a user. Returns False if the user already has that LocationGuid."""
         ...
 
+    def remove_favorite(self, user_id: str, location_guid: str) -> bool:
+        """Remove a store from a user's favorites. Returns False if it was not a favorite."""
+        ...
+
+    def update_store(
+        self, user_id: str, location_guid: str, enabled: bool, filters: StoreFilterConfig
+    ) -> bool:
+        """Replace a favorite's enabled flag and filters. Returns False if it was not a favorite."""
+        ...
+
     def list_stores(self, user_id: str) -> list[UserStore]:
         """Return all of a user's stores, enabled or not."""
         ...
@@ -107,6 +117,24 @@ class PostgresStoreRepository:
                 ),
             )
             return cur.rowcount == 1
+
+    def remove_favorite(self, user_id: str, location_guid: str) -> bool:
+        user_id = validate_user_id(user_id)
+        cur = self.conn.execute(
+            "DELETE FROM user_stores WHERE discord_id = %s AND location_guid = %s",
+            (user_id, location_guid.lower()),
+        )
+        return cur.rowcount == 1
+
+    def update_store(
+        self, user_id: str, location_guid: str, enabled: bool, filters: StoreFilterConfig
+    ) -> bool:
+        user_id = validate_user_id(user_id)
+        cur = self.conn.execute(
+            "UPDATE user_stores SET enabled = %s, filters = %s WHERE discord_id = %s AND location_guid = %s",
+            (enabled, Jsonb(filters.model_dump()), user_id, location_guid.lower()),
+        )
+        return cur.rowcount == 1
 
     def list_stores(self, user_id: str) -> list[UserStore]:
         user_id = validate_user_id(user_id)

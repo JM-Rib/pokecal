@@ -13,7 +13,7 @@ from rich.table import Table
 
 from pokecal import __version__
 from pokecal.calendar import export_ical_file
-from pokecal.config import database_url, load_config
+from pokecal.config import database_url, discord_token, load_config
 from pokecal.db import PostgresStoreRepository, StoreRepository, validate_user_id
 from pokecal.models import PokemonEvent, StoreConfig
 from pokecal.parser import parse_store_url
@@ -213,6 +213,30 @@ def search(
             console.print(f"[green]✓ Saved[/green] {st.name}")
         else:
             console.print(f"[yellow]Already configured:[/yellow] {st.name}")
+
+
+@app.command()
+def bot(
+    headless: bool = typer.Option(
+        False,
+        "--headless/--no-headless",
+        help="The locator blocks headless browsers, so a visible window is the default.",
+    ),
+) -> None:
+    """Run the Discord bot (/search, /add, /remove, /list, /filter)."""
+    from pokecal.discord_bot import run_bot
+
+    try:
+        token = discord_token()
+    except ValueError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=2)
+    repo = open_repository()
+    try:
+        run_bot(token, repo, headless=headless)
+    except RuntimeError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=2)
 
 
 @app.command()
