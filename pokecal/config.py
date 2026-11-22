@@ -38,3 +38,12 @@ def database_url(env: Mapping[str, str] | None = None) -> str:
     port = env.get("POSTGRES_PORT", "5432")
     db = quote(env.get("POSTGRES_DB", "pokecal"), safe="")
     return f"postgresql://{user}:{quote(password, safe='')}@{host}:{port}/{db}"
+
+
+def discord_token(env: Mapping[str, str] | None = None) -> str:
+    """Return the Discord bot token from DISCORD_BOT_TOKEN."""
+    env = os.environ if env is None else env
+    token = env.get("DISCORD_BOT_TOKEN", "").strip()
+    if not token:
+        raise ValueError("Set DISCORD_BOT_TOKEN (see .env.example).")
+    return token

@@ -41,9 +41,9 @@ uv sync
 uv run playwright install chromium
 ```
 
-### PostgreSQL for a future bot
+### PostgreSQL
 
-The Discord bot is not part of PokéCal yet, and the current CLI does not connect to this database. To start PostgreSQL for future bot development or hosting:
+The CLI and the Discord bot store favorites in PostgreSQL. To start it locally:
 
 ```bash
 cp .env.example .env
@@ -101,6 +101,16 @@ uv run pokecal inspect-store "<STORE_URL>"
 # Also test fetching live events directly:
 uv run pokecal inspect-store "<STORE_URL>" --fetch
 ```
+
+### `pokecal bot`
+Runs the Discord bot (official Discord API via `discord.py`, which must be installed: `uv add discord.py`). Set `DISCORD_BOT_TOKEN` and the database variables first. Responses are private to the caller. Slash commands:
+- `/search <city>`: lists stores near the city (the first autocomplete suggestion is used; opens a visible browser on the host).
+- `/add <store>`: saves a store from your last search, by number or name.
+- `/remove <store>`: removes a favorite, by number or name.
+- `/list`: shows your favorites with their filters.
+- `/filter <store> [event_types] [game_categories] [exclude_keywords] [enabled]`: sets which events you see; comma-separated values, `any`/`none` clears a list.
+
+Syncing and publishing the `.ics` feeds is still done with `pokecal sync`.
 
 ### `pokecal search <city> --user <discord_id>`
 Searches the locator for stores around a city and saves favorites for the given Discord user:
@@ -172,7 +182,7 @@ Contributors and AI development agents must read [`AGENT.md`](AGENT.md) before c
 ## Roadmap
 
 - **Store search (implemented):** `pokecal search <city>`; see CLI Commands. Favourite stores may be in different towns from the search point.
-- **Discord bot (planned, later):** a Discord interface built on the official Discord API. Out of scope for now.
+- **Discord bot (implemented):** `pokecal bot`; see CLI Commands. Automated feed refresh and hosting are not part of it yet.
 
 ---
 
